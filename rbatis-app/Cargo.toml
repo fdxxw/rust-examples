@@ -30,4 +30,4 @@ hyper = "0.14.17"
 
 tower = "0.4.12"
 
-tower-http = "0.2.2"
+tower-http = "0.2.5"
