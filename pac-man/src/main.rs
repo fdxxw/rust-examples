@@ -17,6 +17,7 @@ fn main() {
     loop {
         // update screen
         print_screen(&maze, &player);
+        println!("");
         if let Ok(input) = read_input() {
             if input.as_str() == "ESC" {
                 break;
