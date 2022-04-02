@@ -8,7 +8,7 @@ use crossterm::event::{read, Event, KeyCode};
 
 fn main() {
     // initialize game
-    initialize();
+    // initialize();
     // load resources
     let maze = load_maze("maze01.txt").unwrap();
     let mut player = Sprite::new(&maze);
@@ -32,7 +32,7 @@ fn main() {
         // break;
         // repeat
     }
-    clean_up();
+    // clean_up();
 }
 
 fn load_maze(file: &str) -> Result<Vec<String>, io::Error> {
