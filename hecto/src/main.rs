@@ -1,28 +1,12 @@
-use std::io::{stdout, Write};
-
-use crossterm::{
-    execute,
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
-    ExecutableCommand, Result,
-    event,
-};
-
-fn main() -> Result<()> {
-    // using the macro
-    execute!(
-        stdout(),
-        SetForegroundColor(Color::Blue),
-        SetBackgroundColor(Color::Red),
-        Print("Styled text here."),
-        ResetColor
-    )?;
-
-    // or using functions
-    stdout()
-        .execute(SetForegroundColor(Color::Blue))?
-        .execute(SetBackgroundColor(Color::Red))?
-        .execute(Print("Styled text here."))?
-        .execute(ResetColor)?;
-    
-    Ok(())
+mod document;
+mod editor;
+mod row;
+mod terminal;
+pub use document::Document;
+use editor::Editor;
+pub use editor::Position;
+pub use row::Row;
+pub use terminal::Terminal;
+fn main() {
+    Editor::default().run();
 }
