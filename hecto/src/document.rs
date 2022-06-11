@@ -1,6 +1,6 @@
 use std::{fs, io::Write};
 
-use crate::{Position, Row};
+use crate::{editor::SearchDirection, Position, Row};
 
 #[derive(Default)]
 pub struct Document {
@@ -54,6 +54,7 @@ impl Document {
         if at.y >= len {
             return;
         }
+        self.dirty = true;
         if at.x == self.rows.get_mut(at.y).unwrap().len() && at.y < len - 1 {
             let next_row = self.rows.remove(at.y + 1);
             let row = self.rows.get_mut(at.y).unwrap();
@@ -71,14 +72,52 @@ impl Document {
         let new_row = self.rows.get_mut(at.y).unwrap().split(at.x);
         self.rows.insert(at.y + 1, new_row);
     }
-    pub fn save(&self) -> Result<(), std::io::Error> {
+    pub fn save(&mut self) -> Result<(), std::io::Error> {
         if let Some(file_name) = &self.file_name {
             let mut file = fs::File::create(file_name)?;
             for row in &self.rows {
                 file.write_all(row.as_bytes())?;
                 file.write_all(b"\n")?;
             }
+            self.dirty = false;
         }
         Ok(())
+    }
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+    pub fn find(&self, query: &str, at: &Position, direction: SearchDirection) -> Option<Position> {
+        if at.y >= self.len() {
+            return None;
+        }
+        let mut position = Position { x: at.x, y: at.y };
+        let start = if direction == SearchDirection::Forward {
+            at.y
+        } else {
+            0
+        };
+        let end = if direction == SearchDirection::Forward {
+            self.len()
+        } else {
+            at.y.saturating_add(1)
+        };
+        for _ in start..end {
+            if let Some(row) = self.rows.get(position.y) {
+                if let Some(x) = row.find(&query, position.x, direction) {
+                    position.x = x;
+                    return Some(position);
+                }
+                if direction == SearchDirection::Forward {
+                    position.y = position.y.saturating_add(1);
+                    position.x = 0;
+                } else {
+                    position.y = position.y.saturating_sub(1);
+                    position.x = self.rows[position.y].len();
+                }
+            } else {
+                return None;
+            }
+        }
+        None
     }
 }

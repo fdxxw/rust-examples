@@ -28,7 +28,7 @@ impl Terminal {
         })
     }
     pub fn size(&self) -> &Size {
-        return &self.size;
+        &self.size
     }
     pub fn clear_screen() {
         stdout()
@@ -70,8 +70,6 @@ impl Terminal {
         io::stdout().flush()
     }
     pub fn read_key() -> Result<Event, std::io::Error> {
-        loop {
-            return read();
-        }
+        read()
     }
 }

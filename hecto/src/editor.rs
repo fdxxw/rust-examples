@@ -22,7 +22,13 @@ const STATUS_FG_COLOR: Color = Color::Rgb {
     g: 63,
     b: 63,
 };
-#[derive(Default)]
+const QUIT_TIMES: u8 = 3;
+#[derive(PartialEq, Copy, Clone)]
+pub enum SearchDirection {
+    Forward,
+    Backward,
+}
+#[derive(Default, Clone)]
 pub struct Position {
     pub x: usize,
     pub y: usize,
@@ -46,6 +52,7 @@ pub struct Editor {
     offset: Position,
     document: Document,
     status_message: StatusMessage,
+    quit_times: u8,
 }
 impl Editor {
     pub fn default() -> Self {
@@ -53,9 +60,9 @@ impl Editor {
         let mut initial_status = String::from("HELP: Ctrl-S = save | Ctrl-Q | Esc = quit");
         let document = if args.len() > 1 {
             let file_name = &args[1];
-            let doc = Document::open(&file_name);
-            if doc.is_ok() {
-                doc.unwrap()
+            let doc = Document::open(file_name);
+            if let Ok(doc) = doc {
+                doc
             } else {
                 initial_status = format!("ERR: Could not open file: {}", file_name);
                 Document::default()
@@ -68,8 +75,9 @@ impl Editor {
             terminal: Terminal::default().expect("Failed to initialize terminal"),
             cursor_position: Position::default(),
             offset: Position::default(),
-            document: document,
+            document,
             status_message: StatusMessage::from(initial_status),
+            quit_times: QUIT_TIMES,
         }
     }
     pub fn run(&mut self) {
@@ -131,11 +139,17 @@ impl Editor {
         if let Event::Key(pressed_key) = event {
             match (pressed_key.modifiers, pressed_key.code) {
                 (KeyModifiers::CONTROL, KeyCode::Char('q')) | (_, KeyCode::Esc) => {
+                    if self.quit_times > 0 && self.document.is_dirty() {
+                        self.status_message = StatusMessage::from(format!("WARNING! File has unsaved changes. Press Ctrl-Q | Esc {} more times to quit.", self.quit_times));
+                        self.quit_times -= 1;
+                        return Ok(());
+                    }
                     self.should_quit = true
                 }
                 (KeyModifiers::CONTROL, KeyCode::Char('s')) => {
                     self.save();
                 }
+                (KeyModifiers::CONTROL, KeyCode::Char('f')) => self.search(),
                 (_, KeyCode::Char(c)) => {
                     self.document.insert(&self.cursor_position, c);
                     self.move_cursor(KeyCode::Right);
@@ -163,6 +177,10 @@ impl Editor {
             }
         }
         self.scroll();
+        if self.quit_times < QUIT_TIMES {
+            self.quit_times = QUIT_TIMES;
+            self.status_message = StatusMessage::from(String::new());
+        }
         Ok(())
     }
     fn draw_welcode_message(&self) {
@@ -284,14 +302,24 @@ impl Editor {
     }
     fn draw_status_bar(&self) {
         // let spaces = " ".repeat(self.terminal.size().width as usize);
-        let mut status;
+
         let width = self.terminal.size().width as usize;
+        let modified_indicator = if self.document.is_dirty() {
+            " (modified)"
+        } else {
+            ""
+        };
         let mut file_name = "[No Name]".to_string();
         if let Some(name) = &self.document.file_name {
             file_name = name.clone();
             file_name.truncate(20);
         }
-        status = format!("{} - {} lines", file_name, self.document.len());
+        let mut status = format!(
+            "{} - {} lines{}",
+            file_name,
+            self.document.len(),
+            modified_indicator
+        );
         // if width > status.len() {
         //     status.push_str(&" ".repeat(width - status.len()));
         // }
@@ -321,14 +349,17 @@ impl Editor {
             print!("{}", text);
         }
     }
-    fn prompt(&mut self, prompt: &str) -> Result<Option<String>, std::io::Error> {
+    fn prompt<C>(&mut self, prompt: &str, mut callback: C) -> Result<Option<String>, std::io::Error>
+    where
+        C: FnMut(&mut Self, Event, &String),
+    {
         let mut result = String::new();
         loop {
             self.status_message = StatusMessage::from(format!("{}{}", prompt, result));
             self.refresh_screen()?;
             let event = Terminal::read_key()?;
             if let Event::Key(pressed_key) = event {
-                match (pressed_key.code) {
+                match pressed_key.code {
                     KeyCode::Backspace => {
                         if !result.is_empty() {
                             result.truncate(result.len() - 1);
@@ -348,6 +379,7 @@ impl Editor {
                     }
                     _ => (),
                 }
+                callback(self, event, &result);
             }
         }
         self.status_message = StatusMessage::from(String::new());
@@ -358,7 +390,7 @@ impl Editor {
     }
     fn save(&mut self) {
         if self.document.file_name.is_none() {
-            let new_name = self.prompt("Save as: ").unwrap_or(None);
+            let new_name = self.prompt("Save as: ", |_, _, _| {}).unwrap_or(None);
             if new_name.is_none() {
                 self.status_message = StatusMessage::from("Save aborted.".to_string());
                 return;
@@ -369,6 +401,43 @@ impl Editor {
             self.status_message = StatusMessage::from("File saved successfully.".to_string());
         } else {
             self.status_message = StatusMessage::from("Error writting file!".to_string());
+        }
+    }
+    fn search(&mut self) {
+        let old_position = self.cursor_position.clone();
+        let mut direction = SearchDirection::Forward;
+        let query = self
+            .prompt(
+                "Search (ESC to cancel, Arraws to navigate): ",
+                |editor, event, query| {
+                    let mut moved = false;
+                    if let Event::Key(event) = event {
+                        match event.code {
+                            KeyCode::Right | KeyCode::Down => {
+                                direction = SearchDirection::Forward;
+                                editor.move_cursor(KeyCode::Right);
+                                moved = true;
+                            }
+                            KeyCode::Up | KeyCode::Left => direction = SearchDirection::Backward,
+                            _ => direction = SearchDirection::Forward,
+                        }
+                    }
+                    if let Some(position) =
+                        editor
+                            .document
+                            .find(&query, &editor.cursor_position, direction)
+                    {
+                        editor.cursor_position = position;
+                        editor.scroll();
+                    } else if moved {
+                        editor.move_cursor(KeyCode::Left);
+                    }
+                },
+            )
+            .unwrap_or(None);
+        if query.is_none() {
+            self.cursor_position = old_position;
+            self.scroll();
         }
     }
 }

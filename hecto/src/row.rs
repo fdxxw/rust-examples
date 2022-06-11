@@ -1,6 +1,9 @@
 use std::cmp;
 
+use crossterm::style::{Color, SetBackgroundColor, SetForegroundColor};
 use unicode_segmentation::UnicodeSegmentation;
+
+use crate::{editor::SearchDirection};
 
 #[derive(Default)]
 pub struct Row {
@@ -28,10 +31,23 @@ impl Row {
             .skip(start)
             .take(end - start)
         {
-            if grapheme == "\t" {
-                result.push_str(" ");
-            } else {
-                result.push_str(grapheme);
+            if let Some(c) = grapheme.chars().next() {
+                if c == '\t' {
+                    result.push(' ');
+                } else if c.is_ascii_digit() {
+                    result.push_str(&format!(
+                        "{}{}{}",
+                        SetForegroundColor(Color::Rgb {
+                            r: 220,
+                            g: 163,
+                            b: 163
+                        }),
+                        c,
+                        SetForegroundColor(Color::Reset)
+                    ))
+                } else {
+                    result.push(c);
+                }
             }
         }
         result
@@ -77,12 +93,48 @@ impl Row {
     }
     pub fn split(&mut self, at: usize) -> Self {
         let beginning: String = self.string[..].graphemes(true).take(at).collect();
-        let remainder:String = self.string[..].graphemes(true).skip(at).collect();
+        let remainder: String = self.string[..].graphemes(true).skip(at).collect();
         self.string = beginning;
         self.update_len();
         Self::from(&remainder[..])
     }
     pub fn as_bytes(&self) -> &[u8] {
         self.string.as_bytes()
+    }
+    pub fn find(&self, query: &str, at: usize, direction: SearchDirection) -> Option<usize> {
+        if at > self.len {
+            return None;
+        }
+        let start = if direction == SearchDirection::Forward {
+            at
+        } else {
+            0
+        };
+        let end = if direction == SearchDirection::Forward {
+            self.len
+        } else {
+            at
+        };
+
+        let substring: String = self.string[..]
+            .graphemes(true)
+            .skip(start)
+            .take(end - start)
+            .collect();
+        let matching_byte_index = if direction == SearchDirection::Forward {
+            substring.find(query)
+        } else {
+            substring.rfind(query)
+        };
+        if let Some(matching_byte_index) = matching_byte_index {
+            for (grapheme_index, (byte_index, _)) in
+                substring[..].grapheme_indices(true).enumerate()
+            {
+                if matching_byte_index == byte_index {
+                    return Some(start + grapheme_index);
+                }
+            }
+        }
+        None
     }
 }
