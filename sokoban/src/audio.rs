@@ -4,7 +4,7 @@ use ggez::{
     audio::{self, SoundSource},
     Context,
 };
-use specs::{world, World, WorldExt};
+use specs::{World, WorldExt};
 
 #[derive(Default)]
 pub struct AudioStore {

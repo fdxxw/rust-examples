@@ -3,7 +3,7 @@ use std::{fmt::Display, time::Duration};
 use ggez::event;
 use specs::World;
 
-use crate::{events::Event, audio::AudioStore};
+use crate::{events::Event, audio::AudioStore, level::LevelStore};
 
 #[derive(Default)]
 pub struct InputQueue {
@@ -16,13 +16,16 @@ pub fn register_resources(world: &mut World) {
     world.insert(Time::default());
     world.insert(EventQueue::default());
     world.insert(AudioStore::default());
+    world.insert(LevelStore::default());
 }
 
 #[derive(Default)]
 pub struct Gameplay {
     pub state: GameplayState,
     pub move_count: u32,
+    pub level: u8, // 关卡
 }
+#[derive(PartialEq)]
 pub enum GameplayState {
     Playing,
     Won,

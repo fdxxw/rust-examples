@@ -1,21 +1,24 @@
 use std::collections::HashMap;
 
 use ggez::Context;
-use specs::{Entities, Join, ReadStorage, System, Write};
+use specs::{Entities, Join, ReadStorage, System, World, Write};
 
 use crate::{
-    audio::{AudioStore},
+    audio::AudioStore,
     components::{Box, BoxSpot, Position},
     events::{BoxPlacedOnSpot, EntityMoved, Event},
-    resources::EventQueue,
+    map::load_map_level,
+    resources::{EventQueue, Gameplay, GameplayState},
 };
 
 pub struct EventSystem<'a> {
     pub context: &'a mut Context,
+    pub world: &'a World,
 }
 
 impl<'a> System<'a> for EventSystem<'a> {
     type SystemData = (
+        Write<'a, Gameplay>,
         Write<'a, EventQueue>,
         Write<'a, AudioStore>,
         Entities<'a>,
@@ -23,8 +26,18 @@ impl<'a> System<'a> for EventSystem<'a> {
         ReadStorage<'a, BoxSpot>,
         ReadStorage<'a, Position>,
     );
-    fn run(&mut self, data: Self::SystemData) {
-        let (mut event_queue, mut audio_store, entities, boxes, box_spots, positions) = data;
+    fn run(
+        &mut self,
+        (
+            mut gameplay,
+            mut event_queue,
+            mut audio_store,
+            entities,
+            boxes,
+            box_spots,
+            positions,
+        ): Self::SystemData,
+    ) {
         let mut new_events = Vec::new();
         for event in event_queue.events.drain(..) {
             println!("New event: {:?}", event);
@@ -56,6 +69,14 @@ impl<'a> System<'a> for EventSystem<'a> {
                         "incorrect"
                     };
                     audio_store.play_sound(self.context, &sound.to_string());
+                }
+                Event::Won => {
+                    for entity in (&entities).join() {
+                        entities.delete(entity).expect("expected delete entity");
+                    }
+                    gameplay.level += 1;
+                    load_map_level(self.world, gameplay.level);
+                    gameplay.state = GameplayState::Playing
                 }
             }
         }

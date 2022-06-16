@@ -1,11 +1,12 @@
-use specs::World;
+use specs::{LazyUpdate, World, WorldExt};
 
 use crate::{
     components::{BoxColour, Position},
     entities::{create_box, create_box_spot, create_floor, create_player, create_wall},
+    level::LevelStore,
 };
 
-pub fn load_map(world: &mut World, map_string: String) {
+pub fn load_map(world: &World, map_string: String) {
     let rows: Vec<&str> = map_string.trim().split("\n").map(|x| x.trim()).collect();
     for (y, row) in rows.iter().enumerate() {
         let columns: Vec<&str> = row.split(" ").collect();
@@ -15,31 +16,34 @@ pub fn load_map(world: &mut World, map_string: String) {
                 y: y as u8,
                 z: 0,
             };
+            let lazy = world.read_resource::<LazyUpdate>();
+            let entities = world.entities();
+
             match *column {
-                "." => create_floor(world, position),
+                "." => create_floor(lazy.create_entity(&entities), position),
                 "W" => {
-                    create_floor(world, position);
-                    create_wall(world, position);
+                    create_floor(lazy.create_entity(&entities), position);
+                    create_wall(lazy.create_entity(&entities), position);
                 }
                 "P" => {
-                    create_floor(world, position);
-                    create_player(world, position);
+                    create_floor(lazy.create_entity(&entities), position);
+                    create_player(lazy.create_entity(&entities), position);
                 }
                 "BS" => {
-                    create_floor(world, position);
-                    create_box_spot(world, position, BoxColour::Blue);
+                    create_floor(lazy.create_entity(&entities), position);
+                    create_box_spot(lazy.create_entity(&entities), position, BoxColour::Blue);
                 }
                 "RS" => {
-                    create_floor(world, position);
-                    create_box_spot(world, position, BoxColour::Red);
+                    create_floor(lazy.create_entity(&entities), position);
+                    create_box_spot(lazy.create_entity(&entities), position, BoxColour::Red);
                 }
                 "BB" => {
-                    create_floor(world, position);
-                    create_box(world, position, BoxColour::Blue);
+                    create_floor(lazy.create_entity(&entities), position);
+                    create_box(lazy.create_entity(&entities), position, BoxColour::Blue);
                 }
                 "RB" => {
-                    create_floor(world, position);
-                    create_box(world, position, BoxColour::Red);
+                    create_floor(lazy.create_entity(&entities), position);
+                    create_box(lazy.create_entity(&entities), position, BoxColour::Red);
                 }
 
                 "N" => (),
@@ -47,4 +51,11 @@ pub fn load_map(world: &mut World, map_string: String) {
             }
         }
     }
+}
+
+pub fn load_map_level(world: &World, level: u8) {
+    load_map(
+        world,
+        world.read_resource::<LevelStore>().level(level).to_string(),
+    );
 }

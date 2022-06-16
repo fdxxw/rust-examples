@@ -1,7 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
 use ggez::{
-    graphics::{self, spritebatch::SpriteBatch, DrawParam, Drawable, Image},
+    graphics::{self, spritebatch::SpriteBatch, DrawParam, Image},
     timer, Context,
 };
 use glam::Vec2;
@@ -32,7 +32,7 @@ impl<'a> System<'a> for RenderingSysterm<'a> {
         graphics::clear(self.context, graphics::Color::new(0.95, 0.95, 0.95, 1.0));
         // Get all the renderables with their positions and sort by the position z
         // This will allow us to have entities layered visually.
-        let mut rendering_data = (&positions, &renderables).join().collect::<Vec<_>>();
+        let rendering_data = (&positions, &renderables).join().collect::<Vec<_>>();
         let mut rendering_batches: HashMap<u8, HashMap<String, Vec<DrawParam>>> = HashMap::new();
         // rendering_data.sort_by_key(|&k| k.0.z);
         // Iterate through all pairs of positions & renderables, load the image
@@ -60,13 +60,15 @@ impl<'a> System<'a> for RenderingSysterm<'a> {
                 for draw_param in draw_params {
                     sprite_batch.add(*draw_param);
                 }
-                graphics::draw(self.context, &sprite_batch, DrawParam::new()).expect("expected render");
+                graphics::draw(self.context, &sprite_batch, DrawParam::new())
+                    .expect("expected render");
             }
         }
-        self.draw_text(&gameplay.state.to_string(), 525.0, 80.0);
-        self.draw_text(&gameplay.move_count.to_string(), 525.0, 100.0);
+        self.draw_text(&format!("Level: {}", gameplay.level), 625.0, 60.0);
+        self.draw_text(&format!("State: {}", gameplay.state), 625.0, 80.0);
+        self.draw_text(&format!("Count: {}", gameplay.move_count), 625.0, 100.0);
         let fps = format!("FPS: {:.0}", timer::fps(self.context));
-        self.draw_text(&fps, 525.0, 120.0);
+        self.draw_text(&fps, 625.0, 120.0);
         // Finally, present the context, this will actually display everything
         // on the screen.
         graphics::present(self.context).expect("expected to present");

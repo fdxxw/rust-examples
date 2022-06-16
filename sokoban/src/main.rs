@@ -1,19 +1,21 @@
+#![windows_subsystem = "windows"]
 use audio::initialize_sounds;
 use ggez::{
     conf,
     event::{self},
-    Context, GameResult, timer,
+    timer, Context, GameResult,
 };
-use specs::{World, RunNow, WorldExt};
-use std::path;
+use level::{initialize_levels, LevelStore};
+use specs::{RunNow, World, WorldExt};
+mod audio;
 mod components;
 mod constants;
 mod entities;
+mod events;
+mod level;
 mod map;
 mod resources;
 mod systems;
-mod events;
-mod audio;
 use components::*;
 use resources::*;
 use systems::*;
@@ -30,6 +32,7 @@ struct Game {
 // - rendering
 impl event::EventHandler<ggez::GameError> for Game {
     fn update(&mut self, _context: &mut Context) -> GameResult {
+        self.world.maintain();
         // 输入系统
         {
             let mut is = InputSystem {};
@@ -37,13 +40,21 @@ impl event::EventHandler<ggez::GameError> for Game {
         }
         // 游戏状态系统
         {
-            let mut gss = GameplayStateSystem{};
+            let mut gss = GameplayStateSystem {};
             gss.run_now(&self.world);
         }
         // 时间资源
         {
             let mut time = self.world.write_resource::<Time>();
             time.delta += timer::delta(&_context);
+        }
+        // 事件系统
+        {
+            let mut es = EventSystem {
+                context: _context,
+                world: &self.world,
+            };
+            es.run_now(&self.world);
         }
         Ok(())
     }
@@ -67,46 +78,38 @@ impl event::EventHandler<ggez::GameError> for Game {
     }
 }
 
-pub fn initialize_level(world: &mut World) {
+pub fn initialize_level(world: &World) {
     // const MAP: &str = "
     // N N W W W W W W
     // W W W . . . . W
     // W . . . B . . W
-    // W . . . . . . W 
+    // W . . . . . . W
     // W . P . . . . W
     // W . . . . . . W
     // W . . S . . . W
     // W . . . . . . W
     // W W W W W W W W
     // ";
-    const MAP:&str = "
-    N N W W W W W W
-    W W W . . . . W
-    W . . . BB . . W
-    W . . RB . . . W 
-    W . P . . . . W
-    W . . . . RS . W
-    W . . BS . . . W
-    W . . . . . . W
-    W W W W W W W W
-    ";
-
-    map::load_map(world, MAP.to_string());
+    map::load_map(
+        world,
+        world.read_resource::<LevelStore>().level(5).to_string(),
+    );
 }
 
 pub fn main() -> GameResult {
     // Create a game context and event loop
     let context_builder = ggez::ContextBuilder::new("rust_sokoban", "sokoban")
-        .window_setup(conf::WindowSetup::default().title("Rust Sokoban!"))
+        .window_setup(conf::WindowSetup::default().title("推箱子V1.0"))
         .window_mode(conf::WindowMode::default().dimensions(800.0, 600.0))
-        .add_resource_path(path::PathBuf::from("./resources"));
+        .add_zipfile_bytes(include_bytes!("../resources.zip").to_vec());
 
     let (mut context, event_loop) = context_builder.build()?;
     // Create the game state
     let mut world = World::new();
     register_components(&mut world);
     register_resources(&mut world);
-    initialize_level(&mut world);
+    initialize_levels(&mut world);
+    initialize_level(&world);
     initialize_sounds(&mut world, &mut context);
     let game = Game { world };
     // Run the main event loop

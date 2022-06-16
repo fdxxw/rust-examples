@@ -4,7 +4,7 @@ use specs::{Join, ReadStorage, System, Write};
 
 use crate::{
     components::{Box, BoxSpot, Position},
-    resources::{Gameplay, GameplayState},
+    resources::{Gameplay, GameplayState, EventQueue}, events::Event,
 };
 
 pub struct GameplayStateSystem {}
@@ -12,12 +12,13 @@ pub struct GameplayStateSystem {}
 impl<'a> System<'a> for GameplayStateSystem {
     type SystemData = (
         Write<'a, Gameplay>,
+        Write<'a, EventQueue>,
         ReadStorage<'a, Position>,
         ReadStorage<'a, Box>,
         ReadStorage<'a, BoxSpot>,
     );
     fn run(&mut self, data: Self::SystemData) {
-        let (mut gameplay, positions, boxs, box_spots) = data;
+        let (mut gameplay, mut event_queue, positions, boxs, box_spots) = data;
         let boxes_by_position = (&positions, &boxs)
             .join()
             .map(|t| ((t.0.x, t.0.y), t.1))
@@ -34,6 +35,9 @@ impl<'a> System<'a> for GameplayStateSystem {
                 return;
             }
         }
-        gameplay.state = GameplayState::Won;
+        if gameplay.state == GameplayState::Playing {
+            gameplay.state = GameplayState::Won;
+            event_queue.events.push(Event::Won);
+        }
     }
 }
