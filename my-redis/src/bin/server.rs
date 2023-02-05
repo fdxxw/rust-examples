@@ -12,6 +12,8 @@ use mini_redis::{
 use tokio::net::{TcpListener, TcpStream};
 
 type Db = Arc<Mutex<HashMap<String, Bytes>>>;
+// type ShardedDb = Arc<Vec<Mutex<HashMap<String, Vec<u8>>>>>;
+
 
 #[tokio::main]
 async fn main() {
