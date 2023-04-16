@@ -22,8 +22,8 @@ fn main() {
     // custom_layer();
     // common().unwrap();
     // appender();
-    console_and_file();
-    // console_and_multiple_file();
+    // console_and_file();
+    console_and_multiple_file();
 }
 
 struct LocalTimer;
@@ -40,7 +40,7 @@ fn console_and_file() {
         .with_timer(LocalTimer);
 
     // 输出到文件中
-    let file_appender = rolling::never("logs", "app.log");
+    let file_appender = rolling::daily("logs", "app.log");
     let (non_blocking_appender, _guard) = non_blocking(file_appender);
     let file_layer = fmt::layer()
         .with_ansi(false)
@@ -62,9 +62,13 @@ fn console_and_file() {
 }
 fn console_and_multiple_file() {
     let formatting_layer = fmt::layer().pretty().with_writer(std::io::stdout);
-    let (debug_file, _) = non_blocking(rolling::minutely("./logs", "debug"));
-    let (warn_file, _) = non_blocking(rolling::daily("./logs", "warnings"));
-    let all_files = debug_file.and(warn_file.with_max_level(tracing::Level::WARN));
+    let (debug_file, _guard) = non_blocking(rolling::daily("logs", "debug"));
+    let (warn_file, _guard) = non_blocking(rolling::daily("logs", "warning"));
+    let (info_file, _guard) = non_blocking(rolling::daily("logs", "info"));
+    let all_files = debug_file
+        .and(warn_file.with_max_level(tracing::Level::WARN).with_min_level(tracing::Level::ERROR))
+        .and(info_file.with_max_level(tracing::Level::INFO).with_min_level(tracing::Level::INFO));
+
     let file_layer = fmt::layer().with_ansi(false).with_writer(all_files);
 
     Registry::default()
@@ -72,6 +76,9 @@ fn console_and_multiple_file() {
         .with(file_layer)
         .init();
     tracing::warn!("sleeping for a minute...");
+    tracing::info!("sleeping for a minute...");
+    tracing::debug!("sleeping for a minute...");
+    tracing::error!("sleeping for a minute...");
 
     std::thread::sleep(std::time::Duration::from_secs(60));
 
@@ -83,7 +90,7 @@ fn appender() {
     let debug_file = rolling::minutely("./logs", "debug");
     // Log warnings and errors to a separate file. Since we expect these events
     // to occur less frequently, roll that file on a daily basis instead.
-    let warn_file = rolling::daily("./logs", "warnings").with_max_level(tracing::Level::WARN);
+    let warn_file = rolling::daily("./logs", "warning").with_max_level(tracing::Level::WARN);
     let all_files = debug_file.and(warn_file);
 
     tracing_subscriber::fmt()
